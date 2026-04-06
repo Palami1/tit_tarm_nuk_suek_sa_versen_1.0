@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+:root {
+  --font-lao: var(--font-noto-lao);
+}
+
+body {
+  font-family: var(--font-lao), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+@theme inline {
+  --font-noto-lao: var(--font-noto-lao);
+}
+
+/* Custom Utilities from original HTML */
+.card-shadow {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.btn-gradient-red {
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+}
+
+.logo-style {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.05));
+}
+
+.ltc-red-gradient {
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+}
+
+.logo-glow {
+  filter: drop-shadow(0 4px 6px rgba(225, 29, 72, 0.1));
+}
