@@ -1,135 +1,150 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useRouter, useParams } from 'next/navigation';
-
-// Removed misplaced static params
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface Intern {
+  id: string;
   fullname: string;
   email: string;
   role: string;
+  college?: string;
+  major?: string;
+  status?: string;
 }
 
-interface AttendanceRecord {
-  id: string;
-  date: string;
-  checkInTime: string;
-  checkOutTime: string | null;
-  workStatus: string;
-  status: string;
-}
-
-const InternDetailPage = () => {
-  const params = useParams();
-  const id = params?.id as string;
-  const [intern, setIntern] = useState<Intern | null>(null);
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+const InternsListPage = () => {
+  const [interns, setInterns] = useState<Intern[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const router = useRouter();
 
   useEffect(() => {
-    if (!id) return;
-
-    // 1. ດຶງຂໍ້ມູນພື້ນຖານຂອງ Intern
-    const fetchIntern = async () => {
-      const docRef = doc(db, 'users', id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setIntern(docSnap.data() as Intern);
-      }
-    };
-
-    // 2. ດຶງປະຫວັດການລົງເວລາແບບ Real-time
+    // ດຶງລາຍຊື່ນັກສຶກສາທັງໝົດ (role: intern)
     const q = query(
-      collection(db, 'attendance'),
-      where('internId', '==', id),
-      orderBy('date', 'desc'),
-      orderBy('checkInTime', 'desc')
+      collection(db, 'users'),
+      where('role', '==', 'intern')
     );
 
-    const unsubscribe = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as AttendanceRecord[];
-      setRecords(data);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Intern[];
+      setInterns(data);
       setLoading(false);
     });
 
-    fetchIntern();
     return () => unsubscribe();
-  }, [id]);
+  }, []);
 
-  if (loading) return <div className="p-10 text-center text-gray-500">ກຳລັງໂຫຼດຂໍ້ມູນ...</div>;
+  const filteredInterns = interns.filter(i => 
+    i.fullname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    i.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="bg-[#0b0e14] min-h-screen p-6">
-      {/* Back Button */}
-      <button 
-        onClick={() => router.back()}
-        className="mb-6 text-gray-400 hover:text-white flex items-center space-x-2 transition-colors"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeWidth="2"/></svg>
-        <span>ກັບຄືນ</span>
-      </button>
-
-      {/* Profile Header */}
-      <div className="bg-[#161b22] border border-gray-800 rounded-[2rem] p-8 mb-8">
-        <div className="flex items-center space-x-6">
-          <div className="w-20 h-20 rounded-3xl bg-red-600/10 flex items-center justify-center text-3xl font-black text-red-500 border border-red-500/20">
-            {intern?.fullname?.charAt(0) || 'U'}
+    <div className="space-y-8">
+      {/* Header & Search */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-black text-white uppercase italic tracking-tight">Interns Management</h1>
+          <p className="text-[10px] text-gray-500 uppercase tracking-[0.4em] mt-1">LTC Intern Tracking System</p>
+        </div>
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <svg className="h-4 w-4 text-gray-500 group-focus-within:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="2" />
+            </svg>
           </div>
-          <div>
-            <h1 className="text-3xl font-black text-white uppercase italic tracking-tight">{intern?.fullname}</h1>
-            <p className="text-gray-500 font-mono text-sm">{intern?.email}</p>
-            <div className="mt-2 inline-block px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-bold uppercase">
-              {intern?.role}
-            </div>
-          </div>
+          <input
+            type="text"
+            placeholder="ຄົ້ນຫາລາຍຊື່..."
+            className="bg-[#161b22] border border-gray-800 text-sm text-gray-200 pl-11 pr-6 py-3 rounded-2xl w-full md:w-80 focus:ring-1 focus:ring-red-600 focus:border-red-600 outline-none transition-all card-shadow"
+            value={searchTerm}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+          />
         </div>
       </div>
 
-      {/* Attendance History Table */}
-      <div className="bg-[#161b22] border border-gray-800 rounded-[2rem] overflow-hidden">
-        <div className="px-8 py-6 border-b border-gray-800 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-white">Attendance History</h2>
-          <span className="text-xs text-gray-500 uppercase font-bold tracking-widest">{records.length} Records</span>
+      {/* Interns Table */}
+      <div className="bg-[#161b22] border border-gray-800 rounded-[2.5rem] overflow-hidden card-shadow">
+        <div className="px-8 py-6 border-b border-gray-800 flex justify-between items-center bg-white/5">
+          <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest text-center">ລາຍຊື່ນັກສຶກສາທັງໝົດ</h2>
+          <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20 uppercase tracking-tighter">
+            {filteredInterns.length} Participants
+          </span>
         </div>
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="text-[10px] text-gray-500 uppercase tracking-widest bg-white/5 border-b border-gray-800">
-              <th className="px-8 py-4">ວັນທີ</th>
-              <th className="px-8 py-4">ເຂົ້າວຽກ</th>
-              <th className="px-8 py-4">ອອກວຽກ</th>
-              <th className="px-8 py-4">ສະຖານະ</th>
-              <th className="px-8 py-4">ໝາຍເຫດ</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800 text-sm">
-            {records.map((rec) => (
-              <tr key={rec.id} className="hover:bg-white/5 transition-colors">
-                <td className="px-8 py-4 text-gray-300 font-mono">{rec.date}</td>
-                <td className="px-8 py-4 text-green-400 font-bold">{rec.checkInTime}</td>
-                <td className="px-8 py-4 text-orange-400 font-bold">{rec.checkOutTime || '—'}</td>
-                <td className="px-8 py-4">
-                  <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${
-                    rec.status === 'Late' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'
-                  }`}>
-                    {rec.status}
-                  </span>
-                </td>
-                <td className="px-8 py-4">
-                  <span className={`text-[10px] font-bold ${rec.workStatus === 'On-Site' ? 'text-blue-400' : 'text-purple-400'}`}>
-                    {rec.workStatus}
-                  </span>
-                </td>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="text-[10px] text-gray-500 uppercase tracking-[0.2em] bg-white/5 border-b border-gray-800">
+                <th className="px-8 py-5">Intern Detail</th>
+                <th className="px-8 py-5">Academic Info</th>
+                <th className="px-8 py-5">Status</th>
+                <th className="px-8 py-5 text-right">Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="px-8 py-20 text-center text-gray-500 font-mono text-xs">ເປີດໃຊ້ງານລະບົບຄົ້ນຫາ...</td>
+                </tr>
+              ) : filteredInterns.length > 0 ? (
+                filteredInterns.map((intern) => (
+                  <tr key={intern.id} className="hover:bg-white/5 transition-colors group">
+                    <td className="px-8 py-6">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-600/10 to-red-600/5 flex items-center justify-center font-black text-red-500 border border-red-500/10 group-hover:scale-110 transition-transform">
+                          {intern.fullname?.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-gray-200 group-hover:text-white transition-colors">{intern.fullname}</div>
+                          <div className="text-[10px] text-gray-500 font-mono mt-1">{intern.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="text-xs font-bold text-gray-400">{intern.college || '—'}</div>
+                      <div className="text-[10px] text-gray-500 mt-1 uppercase tracking-tighter">{intern.major || '—'}</div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md border ${
+                        (intern.status || 'Active') === 'Active' 
+                          ? 'bg-green-500/10 text-green-500 border-green-500/20' 
+                          : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                      }`}>
+                        {intern.status || 'Active'}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <Link 
+                        href={`/admin/interns/${intern.id}`}
+                        className="inline-flex items-center space-x-2 text-[10px] font-black text-red-500 hover:text-white bg-red-500/5 hover:bg-red-600 px-4 py-2 rounded-xl border border-red-500/10 transition-all uppercase tracking-tighter shadow-sm"
+                      >
+                        <span>View Profile</span>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 5l7 7-7 7" strokeWidth="2.5" />
+                        </svg>
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-8 py-20 text-center text-gray-600 italic text-sm">ບໍ່ພົບລາຍຊື່ທີ່ທ່ານຄົ້ນຫາ</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 };
 
-export default InternDetailPage;
+export default InternsListPage;
