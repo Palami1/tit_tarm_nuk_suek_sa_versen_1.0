@@ -22,7 +22,7 @@ interface AttendanceRecord {
   status: string;
 }
 
-const InternsListPage = () => {
+const InternDetailPage = () => {
   const params = useParams();
   const id = params?.id as string;
   const [intern, setIntern] = useState<Intern | null>(null);
@@ -132,4 +132,4 @@ const InternsListPage = () => {
   );
 };
 
-export default InternsListPage;
+export default InternDetailPage;
