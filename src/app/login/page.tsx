@@ -111,7 +111,7 @@ const LoginPage = () => {
             <img 
               src="https://ltc.laotel.com/BBLogo/LTC%20logo%20sign.png" 
               alt="LTC Logo" 
-              className="h-28 w-auto object-contain logo-style transition-transform hover:scale-105 duration-300"
+              className="h-20 w-auto object-contain logo-style transition-transform hover:scale-105 duration-300"
             />
           </div>
 

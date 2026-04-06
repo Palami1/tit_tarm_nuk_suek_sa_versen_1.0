@@ -139,10 +139,12 @@ const AdminDashboard = () => {
             <div className="text-lg font-mono font-bold text-white">{currentTime}</div>
             <div className="text-[9px] font-bold text-green-500 uppercase tracking-tighter">System Live</div>
           </div>
-          <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center shadow-[0_0_15px_rgba(225,29,72,0.15)]">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" strokeWidth="2"></path>
-            </svg>
+          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-gray-100 overflow-hidden">
+            <img 
+              src="https://ltc.laotel.com/BBLogo/LTC%20logo%20sign.png" 
+              alt="LTC Logo"
+              className="h-8 w-auto object-contain"
+            />
           </div>
         </div>
       </div>

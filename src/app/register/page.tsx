@@ -71,7 +71,7 @@ const RegisterPage = () => {
         <section className="hidden md:flex md:w-5/12 bg-[#e11d48] items-center justify-center p-12 relative overflow-hidden">
           <div className="z-10 text-white text-center">
             <div className="mb-6">
-              <img src="https://ltc.laotel.com/BBLogo/LTC%20logo%20sign.png" className="h-28 mx-auto brightness-200" alt="Logo" />
+              <img src="https://ltc.laotel.com/BBLogo/LTC%20logo%20sign.png" className="h-20 mx-auto brightness-200" alt="Logo" />
             </div>
             <h1 className="text-3xl font-bold mb-4">ຍິນດີຕ້ອນຮັບ</h1>
             <p className="text-sm opacity-80 leading-relaxed">

@@ -88,17 +88,17 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
   return (
     <aside className={`hidden md:flex md:w-72 md:flex-col border-r ${isDark ? 'bg-[#0d1117] border-gray-800' : 'bg-white border-gray-100'} h-full flex-shrink-0`}>
-      <div className="p-10 flex flex-col items-center">
+      <div className="p-8 pb-6 flex items-center space-x-4">
         <img
           alt="LTC Logo"
-          className={`h-20 w-auto mb-4 ${isDark ? 'brightness-125' : 'logo-glow'}`}
+          className={`h-12 w-auto ${isDark ? 'brightness-125' : 'logo-glow'}`}
           src="https://ltc.laotel.com/BBLogo/LTC%20logo%20sign.png"
         />
-        <div className="text-center">
-          <div className="text-[10px] text-gray-500 font-black uppercase tracking-[0.3em]">
+        <div>
+          <div className="text-[10px] text-gray-500 font-black uppercase tracking-wider leading-none">
             Lao Telecom
           </div>
-          <div className={`text-xs font-bold text-red-500 mt-1 uppercase`}>
+          <div className={`text-[11px] font-bold text-red-500 mt-1 uppercase leading-none`}>
             {role === 'admin' ? 'Admin Control' : 'Intern Portal'}
           </div>
         </div>

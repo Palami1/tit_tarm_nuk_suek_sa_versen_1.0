@@ -63,7 +63,7 @@ const DashboardPage = () => {
         );
         const dist = Math.round(d);
         setDistance(dist);
-        setGpsStatus(dist <= 100 ? 'ພ້ອມລົງເວລາ (ຢູ່ໃນພື້ນທີ່)' : 'ໄກເກີນ 100m — ບໍ່ສາມາດລົງເວລາໄດ້');
+        setGpsStatus(dist <= GEOFENCE_LIMIT ? 'ພ້ອມລົງເວລາ (ຢູ່ໃນພື້ນທີ່)' : `ໄກເກີນ ${GEOFENCE_LIMIT}m — ບໍ່ສາມາດລົງເວລາໄດ້`);
       },
       () => setGpsStatus('ບໍ່ສາມາດເຂົ້າເຖິງ GPS ໄດ້'),
       { enableHighAccuracy: true }
@@ -91,7 +91,8 @@ const DashboardPage = () => {
     setSessions(sortedSessions);
   };
 
-  const COMPANY_LOCATION = { lat: 17.9757, lng: 102.6331 };
+  const COMPANY_LOCATION = { lat: 17.969900946492515, lng: 102.6123789072009 };
+  const GEOFENCE_LIMIT = 200; // ແມັດ
   const CHECK_IN_CUTOFF = '08:00';
 
   // ຟັງຊັນຄິດໄລ່ໄລຍະຫ່າງ GPS (ແມັດ)
@@ -108,7 +109,7 @@ const DashboardPage = () => {
 
   const isCheckedIn = sessions.length > 0 && !sessions[sessions.length - 1].checkOutTime;
   const isAllDone = sessions.length >= 2 && Boolean(sessions[sessions.length - 1]?.checkOutTime);
-  const isOutside = distance === null || distance > 100;
+  const isOutside = distance === null || distance > GEOFENCE_LIMIT;
 
   const handleCheckIn = async () => {
     if (!userId || loading || isCheckedIn || isAllDone) {
@@ -122,8 +123,8 @@ const DashboardPage = () => {
       alert('ກຳລັງດຶງ GPS... ກະລຸນາລໍຖ້າ');
       return;
     }
-    if (distance > 100) {
-      alert('ຂໍອະໄພ, ທ່ານຢູ່ໄກຈາກຫ້ອງການ ' + distance + ' ແມັດ (ຕ້ອງຢູ່ພາຍໃນ 100m)');
+    if (distance > GEOFENCE_LIMIT) {
+      alert('ຂໍອະໄພ, ທ່ານຢູ່ໄກຈາກຫ້ອງການ ' + distance + ' ແມັດ (ຕ້ອງຢູ່ພາຍໃນ ' + GEOFENCE_LIMIT + 'm)');
       return;
     }
 
@@ -154,7 +155,7 @@ const DashboardPage = () => {
         const finalDist = calculateDistance(latitude, longitude, COMPANY_LOCATION.lat, COMPANY_LOCATION.lng);
 
         // ກວດ GPS ຄັ້ງສຸດທ້າຍກ່ອນ Save (ປ້ອງກັນ GPS drift)
-        if (finalDist > 100) {
+        if (finalDist > GEOFENCE_LIMIT) {
           alert('ທ່ານບໍ່ໄດ້ຢູ່ໃນສະຖານທີ່ (ໄລຍະຫ່າງ: ' + Math.round(finalDist) + ' ແມັດ)');
           setLoading(false);
           return;
@@ -166,7 +167,7 @@ const DashboardPage = () => {
         cutoff.setHours(hours, minutes, 0, 0);
 
         const status = (now > cutoff) ? 'Late' : 'On-time';
-        const workStatus = finalDist <= 100 ? 'On-Site' : 'Remote';
+        const workStatus = finalDist <= GEOFENCE_LIMIT ? 'On-Site' : 'Remote';
         // ລະບຸຮອບ: Morning (ກ່ອນ 12:00) ຫຼື Afternoon
         const checkInType = now.getHours() < 12 ? 'Morning' : 'Afternoon';
 
@@ -232,7 +233,7 @@ const DashboardPage = () => {
         const distance = calculateDistance(latitude, longitude, COMPANY_LOCATION.lat, COMPANY_LOCATION.lng);
 
         // ກວດສອບໄລຍະຫ່າງຕອນອອກວຽກ
-        if (distance > 100) {
+        if (distance > GEOFENCE_LIMIT) {
           alert('ທ່ານບໍ່ໄດ້ຢູ່ໃນສະຖານທີ່ເຮັດວຽກ (ໄລຍະຫ່າງ: ' + Math.round(distance) + ' ແມັດ)');
           setLoading(false);
           return;
@@ -404,7 +405,7 @@ const DashboardPage = () => {
                 <div>
                   <div className="text-xs font-bold text-gray-800">ຮອບທີ {i + 1}</div>
                   <div className="text-[10px] text-gray-400 font-mono">
-                    {s.checkInTime ? new Date(s.checkInTime).toLocaleTimeString('lo-LA', { hour: '2-digit', minute: '2-digit' }) : '--:--'} 
+                    {s.checkInTime ? new Date(s.checkInTime).toLocaleTimeString('lo-LA', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                     {s.checkOutTime ? ` - ${new Date(s.checkOutTime).toLocaleTimeString('lo-LA', { hour: '2-digit', minute: '2-digit' })}` : ' (ກຳລັງເຮັດວຽກ)'}
                   </div>
                 </div>
