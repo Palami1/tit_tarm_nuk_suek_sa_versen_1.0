@@ -34,7 +34,7 @@ const LoginPage = () => {
           if (!userDoc.empty) {
             const role = userDoc.docs[0].data().role;
             if (role === 'admin') {
-              router.replace('/admin/interns');
+              router.replace('/admin');
             } else {
               router.replace('/dashboard');
             }
@@ -42,7 +42,7 @@ const LoginPage = () => {
             router.replace('/dashboard');
           }
         } catch (err) {
-          console.error(err);
+          console.error('Session check error:', err);
           if (isMounted) setCheckingSession(false);
         }
       } else {
@@ -76,7 +76,7 @@ const LoginPage = () => {
       if (!userDoc.empty) {
         const role = userDoc.docs[0].data().role;
         if (role === 'admin') {
-          router.replace('/admin/interns');
+          router.replace('/admin');
         } else {
           router.replace('/dashboard');
         }

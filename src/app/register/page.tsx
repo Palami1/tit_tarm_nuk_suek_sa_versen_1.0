@@ -43,6 +43,10 @@ const RegisterPage = () => {
       const user = userCredential.user;
 
       // Save additional info to Firestore
+      // NOTE: For the first user or special setup, you can change 'role' to 'admin' manually in Firebase Console.
+      // Or you can use a secret code here for initial setup.
+      const isInitialAdmin = formData.email === 'admin@ltc.lao'; // Example secret admin email
+      
       await setDoc(doc(db, 'users', user.uid), {
         fullname: formData.fullname,
         college: formData.college,
@@ -51,7 +55,7 @@ const RegisterPage = () => {
         email: formData.email,
         startDate: formData.startDate,
         endDate: formData.endDate,
-        role: 'intern',
+        role: isInitialAdmin ? 'admin' : 'intern',
         createdAt: new Date().toISOString(),
       });
 
