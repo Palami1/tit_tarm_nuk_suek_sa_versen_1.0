@@ -15,6 +15,7 @@ const ReportsPage = () => {
     totalHours: 0,
     fullname: 'Intern'
   });
+  const [skills, setSkills] = useState<{ name: string; percent: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -36,27 +37,79 @@ const ReportsPage = () => {
         const totalSessions = attendSnap.size;
         
         // Calculate Days Progress
-        const start = new Date(userData.startDate);
-        const end = new Date(userData.endDate);
-        const today = new Date();
-        const totalDuration = end.getTime() - start.getTime();
-        const elapsed = today.getTime() - start.getTime();
-        
-        const totalDays = Math.ceil(totalDuration / (1000 * 60 * 60 * 24));
-        const daysCompleted = Math.max(0, Math.ceil(elapsed / (1000 * 60 * 60 * 24)));
-        const percent = Math.min(100, Math.max(0, Math.round((daysCompleted / totalDays) * 100)));
+        // Safe parser: handles Firestore Timestamp objects AND plain date strings
+        const parseDate = (val: any): Date | null => {
+          if (!val) return null;
+          if (typeof val.toDate === 'function') return val.toDate(); // Firestore Timestamp
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? null : d;
+        };
 
-        // Estimate Hours (Assuming 8h per session minus lunch)
-        const totalHours = totalSessions * 7; 
+        const start = parseDate(userData.startDate);
+        const end   = parseDate(userData.endDate);
+        const today = new Date();
+
+        let totalDays = 0;
+        let daysCompleted = 0;
+        let percent = 0;
+
+        if (start && end && end > start) {
+          const totalDuration = end.getTime() - start.getTime();
+          const elapsed = today.getTime() - start.getTime();
+          
+          const calendarTotalDays = totalDuration / (1000 * 60 * 60 * 24);
+          const calendarElapsedDays = elapsed / (1000 * 60 * 60 * 24);
+          
+          // ກົດລະບຽນໃໝ່: 1 ເດືອນ (30 ມື້) = 20 ມື້ເຮັດວຽກ
+          totalDays = Math.round((calendarTotalDays / 30) * 20);
+          daysCompleted = Math.max(0, Math.round((calendarElapsedDays / 30) * 20));
+          
+          if (daysCompleted > totalDays) daysCompleted = totalDays;
+          
+          percent = totalDays > 0 ? Math.min(100, Math.max(0, Math.round((daysCompleted / totalDays) * 100))) : 0;
+        }
+
+
+        // Calculate unique days attended from attendance collection
+        const uniqueDaysSet = new Set<string>();
+        attendSnap.docs.forEach(d => {
+          const dt = d.data().date;
+          if (dt) uniqueDaysSet.add(dt);
+        });
+        const uniqueAttendedDays = uniqueDaysSet.size;
+
+        // Estimate Hours (Assuming ~7h per unique day, or specific logic)
+        const totalHours = uniqueAttendedDays * 7; 
         
+        let attendanceRating = 'ກຳລັງປະເມີນ...';
+        
+        if (daysCompleted > 0) {
+           // Calculate performance: attended days vs elapsed days
+           const performancePercent = Math.round((uniqueAttendedDays / daysCompleted) * 100);
+           
+           let grade = 'F (ຕົກ)';
+           if (performancePercent >= 80) grade = 'A (ເກັ່ງ)';
+           else if (performancePercent >= 70) grade = 'B (ດີ)';
+           else if (performancePercent >= 60) grade = 'C (ປານກາງ)';
+           else if (performancePercent >= 50) grade = 'D (ອ່ອນ)';
+           
+           if (daysCompleted < totalDays) {
+              attendanceRating = `${grade} (ຊົ່ວຄາວ)`;
+           } else {
+              attendanceRating = grade;
+           }
+        }
+
         setStats({
           daysCompleted,
           totalDays,
           percent,
-          attendanceRating: totalSessions > 10 ? 'A+' : 'B',
+          attendanceRating,
           totalHours,
           fullname: userData.fullname || 'Intern'
         });
+        // Load skills set by admin
+        setSkills(Array.isArray(userData.skills) ? userData.skills : []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -99,36 +152,31 @@ const ReportsPage = () => {
           </div>
 
           <div className="bg-white rounded-[2.5rem] p-8 card-shadow border border-gray-100">
-            <h3 className="font-bold text-gray-800 mb-6">ທັກສະທີ່ໄດ້ຮຽນຮູ້ (Skills Track)</h3>
-            <div className="space-y-6">
-              <div>
-                <div className="flex justify-between text-xs font-bold mb-2">
-                  <span className="text-gray-500 uppercase">Network Configuration</span>
-                  <span className="text-red-500">80%</span>
-                </div>
-                <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-red-500 h-full transition-all duration-1000" style={{ width: '80%' }}></div>
-                </div>
+            <h3 className="font-bold text-gray-800 mb-6">🎯 ທັກສະທີ່ໄດ້ຮຽນຮູ້ (Skills Track)</h3>
+            {skills.length === 0 ? (
+              <div className="py-10 text-center">
+                <div className="text-4xl mb-3">📋</div>
+                <p className="text-sm text-gray-400 font-bold">ຍັງບໍ່ທັນຖືກກຳໜົດທັກສະ</p>
+                <p className="text-xs text-gray-300 mt-1">Admin ຈະ update ທັກສະໃຫ້ທ່ານໃນໄວໆນີ້</p>
               </div>
-              <div>
-                <div className="flex justify-between text-xs font-bold mb-2">
-                  <span className="text-gray-500 uppercase">Fiber Optic Maintenance</span>
-                  <span className="text-red-500">45%</span>
-                </div>
-                <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-red-500 h-full transition-all duration-1000" style={{ width: '45%' }}></div>
-                </div>
+            ) : (
+              <div className="space-y-6">
+                {skills.map((skill, idx) => (
+                  <div key={idx}>
+                    <div className="flex justify-between text-xs font-bold mb-2">
+                      <span className="text-gray-600 uppercase">{skill.name}</span>
+                      <span className="text-red-500">{skill.percent}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-red-600 to-red-400 h-full rounded-full transition-all duration-1000"
+                        style={{ width: `${skill.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <div className="flex justify-between text-xs font-bold mb-2">
-                  <span className="text-gray-500 uppercase">Customer Service</span>
-                  <span className="text-red-500">95%</span>
-                </div>
-                <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                  <div className="bg-red-500 h-full transition-all duration-1000" style={{ width: '95%' }}></div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -144,10 +192,6 @@ const ReportsPage = () => {
               </div>
             </div>
           </div>
-
-          <button className="w-full bg-white border-2 border-dashed border-gray-700 text-gray-700 py-4 rounded-2xl font-bold text-xs hover:border-red-500 hover:text-red-500 transition-all uppercase">
-            ດາວໂຫຼດໃບຢັ້ງຢືນ (Coming Soon)
-          </button>
         </div>
       </div>
     </div>

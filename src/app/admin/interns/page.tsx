@@ -123,7 +123,7 @@ const InternsListPage = () => {
                     </td>
                     <td className="px-8 py-6 text-right">
                       <Link 
-                        href={`/admin/interns/${intern.id}`}
+                        href={`/admin/interns/profile?id=${intern.id}`}
                         className="inline-flex items-center space-x-2 text-[10px] font-black text-red-500 hover:text-white bg-red-500/5 hover:bg-red-600 px-4 py-2 rounded-xl border border-red-500/10 transition-all uppercase tracking-tighter shadow-sm"
                       >
                         <span>View Profile</span>

@@ -144,11 +144,12 @@ const DashboardPage = () => {
       }
 
       // ດຶງ GPS coordinates ຈາກ watchPosition ໂດຍກົງ (ໃຊ້ getCurrentPosition ສຳລັບ precise fix)
-      if (!navigator.geolocation) {
-        alert('ໂປຣແກຣມທ່ອງເວັບຂອງທ່ານບໍ່ຮ່ວມຮັບ GPS');
-        setLoading(false);
-        return;
-      }
+      // Optimize Geolocation Options for speed and accuracy
+      const geoOptions = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 30000 // Ues cached position if it's less than 30s old
+      };
 
       navigator.geolocation.getCurrentPosition(async (position) => {
         const { latitude, longitude } = position.coords;
@@ -168,13 +169,12 @@ const DashboardPage = () => {
 
         const status = (now > cutoff) ? 'Late' : 'On-time';
         const workStatus = finalDist <= GEOFENCE_LIMIT ? 'On-Site' : 'Remote';
-        // ລະບຸຮອບ: Morning (ກ່ອນ 12:00) ຫຼື Afternoon
         const checkInType = now.getHours() < 12 ? 'Morning' : 'Afternoon';
 
         const docRef = await addDoc(collection(db, 'attendance'), {
           userId,
-          internId: userId,                        // ✅ ID ສຳລັບ Admin query
-          userName,                                // ✅ ຊື່ໃຫ້ Admin ເຫັນເລີຍ
+          internId: userId,
+          userName,
           date: today,
           checkInTime: now.toISOString(),
           checkOutTime: null,
@@ -182,8 +182,8 @@ const DashboardPage = () => {
           workStatus,
           checkInDistance: Math.round(finalDist),
           checkInType,
-          type: 'check-in',                        // ✅ ບອກ Admin ວ່າ Check-in
-          timestamp: serverTimestamp(),            // ✅ Firestore Server Time
+          type: 'check-in',
+          timestamp: serverTimestamp(),
           coordinates: { latitude, longitude },
           deviceInfo: navigator.userAgent
         });
@@ -203,10 +203,11 @@ const DashboardPage = () => {
         setSessions([...sessions, newSession]);
         alert('ລົງເວລາເຂົ້າວຽກສຳເລັດ! (' + status + ')');
         setLoading(false);
-      }, () => {
-        alert('ກະລຸນາເປີດການນຳໃຊ້ GPS');
+      }, (geoErr) => {
+        console.error('GPS Error:', geoErr);
+        alert('ກະລຸນາເປີດການນຳໃຊ້ GPS ຫຼື ຍ້າຍໄປບ່ອນທີ່ຮັບສັນຍານໄດ້ດີ');
         setLoading(false);
-      }, { enableHighAccuracy: true });
+      }, geoOptions);
     } catch (err) {
       console.error(err);
       alert('ເກີດຂໍ້ຜິດພາດໃນການລົງເວລາ');
@@ -227,6 +228,13 @@ const DashboardPage = () => {
         setLoading(false);
         return;
       }
+
+      // Optimize Geolocation Options for speed and accuracy
+      const geoOptions = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 30000 
+      };
 
       navigator.geolocation.getCurrentPosition(async (position) => {
         const { latitude, longitude } = position.coords;
@@ -255,10 +263,11 @@ const DashboardPage = () => {
 
         alert('ລົງເວລາເລີກວຽກສຳເລັດ!');
         setLoading(false);
-      }, (err) => {
-        alert('ກະລຸນາເປີດການນຳໃຊ້ GPS');
+      }, (geoErr) => {
+        console.error('GPS Error:', geoErr);
+        alert('ກະລຸນາເປີດການນຳໃຊ້ GPS ຫຼື ຍ້າຍໄປບ່ອນທີ່ຮັບສັນຍານໄດ້ດີ');
         setLoading(false);
-      });
+      }, geoOptions);
     } catch (err) {
       console.error(err);
       alert('ເກີດຂໍ້ຜິດພາດໃນການລົງເວລາ');
@@ -289,8 +298,8 @@ const DashboardPage = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12">
-      <section className="bg-white rounded-[2rem] p-6 card-shadow flex items-center space-x-5 border border-gray-50">
+    <div className="space-y-6 pb-12 animate-slide-up">
+      <section className="animate-slide-up stagger-1 bg-white rounded-[2rem] p-6 card-shadow card-hover flex items-center space-x-5 border border-gray-50">
         <div className="relative">
           <div className="w-16 h-16 rounded-2xl bg-red-50 p-0.5 overflow-hidden">
             <img
@@ -307,7 +316,7 @@ const DashboardPage = () => {
         </div>
       </section>
 
-      <section className="ltc-red-gradient rounded-[2.5rem] p-8 shadow-xl shadow-red-100 text-white text-center relative overflow-hidden">
+      <section className="animate-slide-up stagger-2 ltc-red-gradient card-hover rounded-[2.5rem] p-8 shadow-xl shadow-red-100 text-white text-center relative overflow-hidden">
         <div className="relative z-10">
           <p className="text-[10px] font-bold text-white/60 uppercase tracking-[0.3em] mb-3">Distance to LTC HQ</p>
           <h1 className="text-5xl font-black mb-3">
@@ -323,11 +332,11 @@ const DashboardPage = () => {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-4">
+      <section className="grid grid-cols-2 gap-4 animate-slide-up stagger-3">
         <button
           onClick={handleCheckIn}
           disabled={isCheckedIn || isAllDone || loading || isOutside}
-          className={`bg-white p-8 rounded-[2rem] card-shadow flex flex-col items-center justify-center space-y-4 border-2 border-transparent transition-all group ${(isCheckedIn || isAllDone || isOutside) ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:border-red-500'}`}
+          className={`hover-pop bg-white p-8 rounded-[2rem] card-shadow flex flex-col items-center justify-center space-y-4 border-2 border-transparent transition-all group ${(isCheckedIn || isAllDone || isOutside) ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:border-red-500'}`}
         >
           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${(isCheckedIn || isAllDone || isOutside) ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-600 group-hover:bg-red-600 group-hover:text-white'}`}>
             <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -345,7 +354,7 @@ const DashboardPage = () => {
         <button
           onClick={handleCheckOut}
           disabled={!isCheckedIn || loading || isOutside}
-          className={`bg-white p-8 rounded-[2rem] card-shadow flex flex-col items-center justify-center space-y-4 border-2 border-transparent transition-all group ${(!isCheckedIn || isOutside) ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:border-gray-800'}`}
+          className={`hover-pop bg-white p-8 rounded-[2rem] card-shadow flex flex-col items-center justify-center space-y-4 border-2 border-transparent transition-all group ${(!isCheckedIn || isOutside) ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:border-gray-800'}`}
         >
           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${(!isCheckedIn || isOutside) ? 'bg-gray-100 text-gray-400' : 'bg-gray-50 text-gray-600 hover:bg-gray-800 hover:text-white'}`}>
             <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -361,7 +370,7 @@ const DashboardPage = () => {
         </button>
       </section>
 
-      <section className="bg-white rounded-[2rem] p-6 card-shadow border border-gray-50">
+      <section className="bg-white rounded-[2rem] p-6 card-shadow border border-gray-50 animate-slide-up stagger-4 card-hover">
         <form onSubmit={handleReportSubmit}>
           <div className="flex items-center space-x-3 mb-5">
             <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
@@ -381,14 +390,14 @@ const DashboardPage = () => {
           <button
             type="submit"
             disabled={loading || sessions.length === 0}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-red-100 active:scale-95 transition-all disabled:opacity-50"
+            className="btn-ripple w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-red-100 hover:shadow-red-200 active:scale-[0.97] transition-all disabled:opacity-50"
           >
             {loading ? 'ກຳລັງສົ່ງ...' : 'ສົ່ງລາຍງານວຽກ'}
           </button>
         </form>
       </section>
       {/* Today Activity Section */}
-      <section className="bg-white rounded-[2rem] p-6 card-shadow border border-gray-50">
+      <section className="bg-white rounded-[2rem] p-6 card-shadow border border-gray-50 animate-slide-up stagger-5 hover-bounce">
         <div className="flex items-center space-x-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center">
             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

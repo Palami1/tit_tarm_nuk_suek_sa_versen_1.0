@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 const InternDetailPage = () => {
-  const params = useParams();
-  const id = params.id as string;
+  const searchParams = useSearchParams();
+  const id = searchParams.get('id') as string;
   const router = useRouter();
 
   const [intern, setIntern] = useState<any>(null);
@@ -26,6 +26,8 @@ const InternDetailPage = () => {
 
     const fetchData = async () => {
       try {
+        if (!id) return;
+        
         // Fetch User Info
         const userSnap = await getDoc(doc(db, 'users', id));
         if (userSnap.exists()) {
@@ -146,7 +148,7 @@ const InternDetailPage = () => {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [attendance]);
 
-  if (loading) return (
+  if (loading || !id) return (
     <div className="flex items-center justify-center h-screen bg-[#0b0e14]">
       <div className="text-gray-500 font-mono text-xs uppercase tracking-widest animate-pulse">Initializing System...</div>
     </div>
@@ -176,7 +178,7 @@ const InternDetailPage = () => {
         </div>
       </div>
 
-      <section className="bg-[#161b22] border border-gray-800 rounded-[3rem] p-10 flex flex-col md:flex-row items-center md:items-start gap-10 shadow-2xl relative overflow-hidden group">
+      <section className="bg-[#161b22] border border-gray-800 rounded-[3rem] p-10 flex flex-col md:flex-row items-center md:items-start gap-10 shadow-2xl relative overflow-hidden group animate-slide-up stagger-1 card-hover">
         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
           <svg className="w-40 h-40" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
@@ -190,20 +192,20 @@ const InternDetailPage = () => {
         <div className="flex-1 text-center md:text-left z-10">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
             <h1 className="text-4xl font-black text-white uppercase italic tracking-tighter">{intern.fullname}</h1>
-            <span className="px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] font-black text-green-500 uppercase tracking-widest h-fit">Active Status</span>
+            <span className="px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-lg text-[9px] font-black text-green-500 uppercase tracking-widest h-fit opacity-90 hover:opacity-100 transition-all cursor-default hover-wiggle">Active Status</span>
           </div>
           <p className="text-gray-500 mt-2 font-mono text-xs font-bold uppercase tracking-widest">{intern.email} • {intern.phone}</p>
           
           <div className="mt-8 flex flex-wrap gap-4 justify-center md:justify-start">
-            <div className="bg-[#0d1117] border border-gray-800 rounded-2xl p-4 min-w-[140px]">
+            <div className="bg-[#0d1117] border border-gray-800 rounded-2xl p-4 min-w-[140px] hover:border-gray-700 transition-all">
               <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest mb-1">Institution</p>
               <p className="text-[11px] font-bold text-gray-300 uppercase">{intern.college || '—'}</p>
             </div>
-            <div className="bg-[#0d1117] border border-gray-800 rounded-2xl p-4 min-w-[140px]">
+            <div className="bg-[#0d1117] border border-gray-800 rounded-2xl p-4 min-w-[140px] hover:border-gray-700 transition-all">
               <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest mb-1">Course / Major</p>
               <p className="text-[11px] font-bold text-gray-300 uppercase">{intern.major || '—'}</p>
             </div>
-            <div className="bg-[#0d1117] border border-gray-800 rounded-2xl p-4 min-w-[140px]">
+            <div className="bg-[#0d1117] border border-gray-800 rounded-2xl p-4 min-w-[140px] hover:border-gray-700 transition-all">
               <p className="text-[8px] text-gray-600 font-black uppercase tracking-widest mb-1">Assigned Period</p>
               <p className="text-[11px] font-bold text-gray-300 uppercase">{intern.startDate} → {intern.endDate}</p>
             </div>
@@ -213,26 +215,26 @@ const InternDetailPage = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         {/* Attendance History */}
-        <section className="bg-[#161b22] border border-gray-800 rounded-[3rem] overflow-hidden shadow-2xl">
+        <section className="bg-[#161b22] border border-gray-800 rounded-[3rem] overflow-hidden shadow-2xl animate-slide-up stagger-2 card-hover">
           <div className="px-8 py-8 border-b border-gray-800 bg-white/[0.02] flex justify-between items-center">
             <div>
               <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em]">Attendance Log</h2>
               <p className="text-[9px] text-gray-600 font-bold uppercase mt-1">Session-based activity history</p>
             </div>
-            <span className="text-[9px] font-black bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg text-gray-500 uppercase">{groupedAttendance.length} Records</span>
+            <span className="text-[9px] font-black bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg text-gray-500 uppercase hover-wiggle cursor-default">{groupedAttendance.length} Records</span>
           </div>
           
           <div className="p-4 space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
             {groupedAttendance.map((log) => (
-              <div key={log.date} className="bg-[#0d1117] border border-gray-800 p-6 rounded-3xl group hover:border-red-500/30 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div key={log.date} className="bg-[#0d1117] border border-gray-800 p-6 rounded-3xl group hover:border-red-500/30 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover-pop">
                 <div className="space-y-4 w-full sm:w-auto">
                   <div className="text-[11px] font-black text-gray-200 uppercase tracking-widest flex items-center">
-                     <span className="w-1.5 h-1.5 bg-red-600 rounded-full mr-3"></span>
+                     <span className="w-1.5 h-1.5 bg-red-600 rounded-full mr-3 animate-pulse-glow"></span>
                      {log.date}
                   </div>
                   <div className="flex flex-wrap items-center gap-6">
                     <div className="space-y-1">
-                      <p className="text-[8px] text-gray-600 font-black uppercase tracking-[0.2em]">ຮອບເຊົ້າ</p>
+                       <p className="text-[8px] text-gray-600 font-black uppercase tracking-[0.2em]">ຮອບເຊົ້າ</p>
                       <div className="font-mono text-[10px] font-bold flex items-center gap-2">
                         <div className="flex flex-col items-center">
                           <span className={`${
@@ -301,18 +303,18 @@ const InternDetailPage = () => {
         </section>
 
         {/* Daily Reports */}
-        <section className="bg-[#161b22] border border-gray-800 rounded-[3rem] overflow-hidden shadow-2xl">
+        <section className="bg-[#161b22] border border-gray-800 rounded-[3rem] overflow-hidden shadow-2xl animate-slide-up stagger-3 card-hover">
           <div className="px-8 py-8 border-b border-gray-800 bg-white/[0.02] flex justify-between items-center">
             <div>
               <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em]">Work Reports</h2>
               <p className="text-[9px] text-gray-600 font-bold uppercase mt-1">Daily task summaries and progress</p>
             </div>
-            <span className="text-[9px] font-black bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg text-gray-500 uppercase">{reports.length} Reports</span>
+            <span className="text-[9px] font-black bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg text-gray-500 uppercase hover-wiggle cursor-default">{reports.length} Reports</span>
           </div>
           
           <div className="p-4 space-y-6 max-h-[600px] overflow-y-auto custom-scrollbar">
             {reports.map((report) => (
-              <div key={report.id} className="bg-[#0d1117] border border-gray-800 p-8 rounded-3xl group hover:border-red-500/30 transition-all">
+              <div key={report.id} className="bg-[#0d1117] border border-gray-800 p-8 rounded-3xl group hover:border-red-500/30 transition-all hover-pop">
                 <div className="flex justify-between items-start mb-4">
                   <div className="text-[11px] font-black text-red-500 uppercase tracking-[0.2em]">{report.date}</div>
                   <div className="text-[9px] font-mono text-gray-700 font-bold uppercase">{report.timeStr}</div>
@@ -331,25 +333,25 @@ const InternDetailPage = () => {
       </div>
 
       {/* ═══════════════ SKILLS EDITOR ═══════════════ */}
-      <section className="bg-[#161b22] border border-gray-800 rounded-[3rem] overflow-hidden shadow-2xl">
+      <section className="bg-[#161b22] border border-gray-800 rounded-[3rem] overflow-hidden shadow-2xl animate-slide-up stagger-4 card-hover">
         <div className="px-8 py-8 border-b border-gray-800 bg-white/[0.02] flex justify-between items-center">
           <div>
             <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em]">🎯 Skills Track Editor</h2>
             <p className="text-[9px] text-gray-600 font-bold uppercase mt-1">ກຳໜົດທັກສະ ແລະ % ໃຫ້ Intern ຄົນນີ້</p>
           </div>
-          <span className="text-[9px] font-black bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg text-gray-500 uppercase">{skills.length} Skills</span>
+          <span className="text-[9px] font-black bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg text-gray-500 uppercase hover-bounce cursor-default">{skills.length} Skills</span>
         </div>
 
         <div className="p-8 space-y-5">
           {/* Skill rows */}
           {skills.length === 0 && (
-            <div className="py-10 text-center opacity-30">
+            <div className="py-10 text-center opacity-30 animate-bounce-in">
               <p className="text-[11px] font-black uppercase tracking-widest text-gray-600">ຍັງບໍ່ທັນໃສ່ Skills — ກົດ + Add ລຸ່ມນີ້</p>
             </div>
           )}
 
           {skills.map((skill, idx) => (
-            <div key={idx} className="bg-[#0d1117] border border-gray-800 rounded-2xl p-5 space-y-3 group hover:border-red-500/20 transition-all">
+            <div key={idx} className="bg-[#0d1117] border border-gray-800 rounded-2xl p-5 space-y-3 group hover:border-red-500/20 transition-all hover-pop">
               <div className="flex items-center gap-3">
                 {/* Skill name */}
                 <input
@@ -361,7 +363,7 @@ const InternDetailPage = () => {
                     updated[idx] = { ...updated[idx], name: e.target.value };
                     setSkills(updated);
                   }}
-                  className="flex-1 bg-[#161b22] border border-gray-700 text-gray-200 text-xs font-bold rounded-xl px-4 py-2.5 outline-none focus:border-red-500 transition-colors placeholder-gray-700"
+                  className="fun-input flex-1 bg-[#161b22] border border-gray-700 text-gray-200 text-xs font-bold rounded-xl px-4 py-2.5 outline-none focus:border-red-500 transition-colors placeholder-gray-700"
                 />
                 {/* Percent number */}
                 <input
@@ -375,13 +377,13 @@ const InternDetailPage = () => {
                     updated[idx] = { ...updated[idx], percent: val };
                     setSkills(updated);
                   }}
-                  className="w-16 bg-[#161b22] border border-gray-700 text-red-400 text-xs font-black rounded-xl px-3 py-2.5 text-center outline-none focus:border-red-500 transition-colors"
+                  className="fun-input w-16 bg-[#161b22] border border-gray-700 text-red-400 text-xs font-black rounded-xl px-3 py-2.5 text-center outline-none focus:border-red-500 transition-colors"
                 />
-                <span className="text-gray-600 text-xs font-black">%</span>
+                <span className="text-gray-600 text-xs font-black hover-wiggle">%</span>
                 {/* Delete */}
                 <button
                   onClick={() => setSkills(skills.filter((_, i) => i !== idx))}
-                  className="text-gray-700 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-500/10"
+                  className="text-gray-700 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-500/10 hover-bounce"
                   title="ລຶບທັກສະ"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -392,7 +394,7 @@ const InternDetailPage = () => {
               {/* Progress bar preview */}
               <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-red-600 to-red-400 h-full rounded-full transition-all duration-500"
+                  className="bg-gradient-to-r from-red-600 to-red-400 h-full rounded-full transition-all duration-700 ease-in-out"
                   style={{ width: `${skill.percent}%` }}
                 />
               </div>
@@ -403,7 +405,7 @@ const InternDetailPage = () => {
           <div className="flex items-center gap-4 pt-2">
             <button
               onClick={() => setSkills([...skills, { name: '', percent: 50 }])}
-              className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-white bg-red-500/5 hover:bg-red-600 border border-red-500/20 hover:border-red-600 px-5 py-3 rounded-xl transition-all"
+              className="hover-bounce flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-white bg-red-500/5 hover:bg-red-600 border border-red-500/20 hover:border-red-600 px-5 py-3 rounded-xl transition-all shadow-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path d="M12 4v16m8-8H4" strokeWidth="2.5" strokeLinecap="round" />
@@ -430,12 +432,12 @@ const InternDetailPage = () => {
                   setSkillsSaving(false);
                 }
               }}
-              className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white bg-green-600 hover:bg-green-500 px-5 py-3 rounded-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-green-900/30"
+              className="btn-ripple hover-bounce flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white bg-green-600 hover:bg-green-500 px-5 py-3 rounded-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-green-900/30"
             >
               {skillsSaving ? (
                 <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> ກຳລັງບັນທຶກ...</>
               ) : skillsSaved ? (
-                <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeWidth="2.5" strokeLinecap="round" /></svg> Saved!</>
+                <><svg className="w-4 h-4 flex-shrink-0 animate-pop-in" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeWidth="2.5" strokeLinecap="round" /></svg> Saved!</>
               ) : (
                 <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg> Save Skills</>
               )}

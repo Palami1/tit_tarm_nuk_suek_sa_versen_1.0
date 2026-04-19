@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDCvscD4J6OzUN3SwHPUwKUPqKNi8gDtcE",
@@ -16,6 +16,10 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // ສ້າງ Object ເພື່ອເອົາໄປໃຊ້ໃນໜ້າອື່ນ
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
 
 export { auth, db };
