@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:https": "next dev --webpack --experimental-https-key ./certificates/key.pem --experimental-https-cert ./certificates/cert.pem -H 0.0.0.0",
+    "proxy:https": "node scripts/serve-https.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

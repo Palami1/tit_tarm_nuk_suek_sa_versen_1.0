@@ -20,6 +20,8 @@ export default function DashboardPage() {
   const [distance, setDistance] = useState<number | null>(null);
   const [isInside, setIsInside] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [isSimulated, setIsSimulated] = useState(false);
+  const [isInsecureOrigin, setIsInsecureOrigin] = useState(false);
   
   // UI Action State
   const [submitting, setSubmitting] = useState(false);
@@ -109,6 +111,14 @@ export default function DashboardPage() {
     };
   }, []);
 
+  // 2.5 Insecure context detector
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isSec = window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      setIsInsecureOrigin(!isSec);
+    }
+  }, []);
+
   // 3. Live GPS watchPosition
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -118,6 +128,7 @@ export default function DashboardPage() {
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
+        if (isSimulated) return;
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         const acc = pos.coords.accuracy;
@@ -133,8 +144,13 @@ export default function DashboardPage() {
         setIsInside(nearest.isInside);
       },
       (err) => {
+        if (isSimulated) return;
         console.error('GPS watch error:', err);
-        setGpsError('ບໍ່ສາມາດເຂົ້າເຖິງ GPS ໄດ້ ກະລຸນາເປີດສະຖານທີ່ (Location Service)');
+        if (typeof window !== 'undefined' && !window.isSecureContext) {
+          setGpsError('Browser ບລັອກ GPS ເນື່ອງຈາກກຳລັງເປີດຜ່ານ HTTP (Insecure Context). ກະລຸນາເຂົ້າຜ່ານ HTTPS ຫຼື ໃຊ້ປຸ່ມຈຳລອງພິກັດດ້ານລຸ່ມເພື່ອທົດສອບ');
+        } else {
+          setGpsError('ບໍ່ສາມາດເຂົ້າເຖິງ GPS ໄດ້ ກະລຸນາເປີດສະຖານທີ່ (Location Service)');
+        }
       },
       {
         enableHighAccuracy: true,
@@ -144,7 +160,27 @@ export default function DashboardPage() {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [settings]);
+  }, [settings, isSimulated]);
+
+  // Toggle simulation mode for Office / VPN testing
+  const handleToggleSimulateHQ = () => {
+    if (!isSimulated) {
+      const hqLat = settings.offices?.[0]?.lat || DEFAULT_OFFICES[0].lat;
+      const hqLng = settings.offices?.[0]?.lng || DEFAULT_OFFICES[0].lng;
+      setCoords({ lat: hqLat, lng: hqLng });
+      setAccuracy(5);
+      setDistance(0);
+      setIsInside(true);
+      setGpsError(null);
+      setIsSimulated(true);
+    } else {
+      setIsSimulated(false);
+      setCoords(null);
+      setAccuracy(null);
+      setDistance(null);
+      setIsInside(false);
+    }
+  };
 
   // Handle Check-in via Server API
   const handleCheckIn = async () => {
@@ -356,10 +392,37 @@ export default function DashboardPage() {
             )}
           </div>
 
+          {/* Office / VPN Test Mode Button */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleToggleSimulateHQ}
+              className={`text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all ${
+                isSimulated
+                  ? 'bg-amber-400 text-gray-900 border-amber-300 shadow-md'
+                  : 'bg-white/10 hover:bg-white/20 text-white/90 border-white/20'
+              }`}
+            >
+              {isSimulated ? '📍 ກຳລັງຈຳລອງພິກັດ LTC HQ (ກົດເພື່ອປິດ)' : '📍 ຈຳລອງພິກັດຢູ່ສຳນັກງານໃຫຍ່ (ສຳລັບທົດສອບຜ່ານ VPN)'}
+            </button>
+          </div>
+
           {gpsError && (
             <p className="text-xs text-amber-200 font-bold mt-2 bg-black/30 p-2 rounded-xl inline-block">
               ⚠️ {gpsError}
             </p>
+          )}
+
+          {isInsecureOrigin && !isSimulated && (
+            <div className="mt-3 p-3 rounded-2xl bg-black/40 border border-amber-400/30 text-amber-200 text-left text-xs space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <span>ℹ️</span>
+                <span>ກຳລັງເຂົ້າໃຊ້ຜ່ານ HTTP ພາຍໃນ (Insecure Context)</span>
+              </div>
+              <p className="text-[11px] text-white/80 leading-relaxed">
+                Browser ມັກຈະບລັອກ GPS ຖ້າບໍ່ແມ່ນ HTTPS. ທ່ານສາມາດກົດປຸ່ມ <b>&quot;ຈຳລອງພິກັດຢູ່ສຳນັກງານໃຫຍ່&quot;</b> ດ້ານເທິງເພື່ອທົດສອບລົງເວລາໄດ້ທັນທີ.
+              </p>
+            </div>
           )}
         </div>
 
