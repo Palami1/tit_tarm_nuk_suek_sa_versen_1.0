@@ -65,7 +65,15 @@ const RegisterPage = () => {
       router.push('/pending');
     } catch (err: any) {
       console.error(err);
-      setError('ການລົງທະບຽນຜິດພາດ: ' + (err.message || 'ລອງໃໝ່ອີກຄັ້ງ'));
+      let errMsg = err.message || 'ລອງໃໝ່ອີກຄັ້ງ';
+      if (err.code === 'auth/email-already-in-use') {
+        errMsg = 'ອີເມວນີ້ມີໃນລະບົບແລ້ວ! ຖ້າທ່ານເຄີຍສະໝັກແລ້ວ ກະລຸນາໄປທີ່ໜ້າ "ເຂົ້າສູ່ລະບົບ" (Login)';
+      } else if (err.code === 'auth/weak-password') {
+        errMsg = 'ລະຫັດຜ່ານສັ້ນເກີນໄປ (ຕ້ອງມີຢ່າງໜ້ອຍ 6 ຕົວອັກສອນ)';
+      } else if (err.code === 'auth/invalid-email') {
+        errMsg = 'ຮູບແບບອີເມວບໍ່ຖືກຕ້ອງ';
+      }
+      setError('ການລົງທະບຽນຜິດພາດ: ' + errMsg);
     } finally {
       setLoading(false);
     }
