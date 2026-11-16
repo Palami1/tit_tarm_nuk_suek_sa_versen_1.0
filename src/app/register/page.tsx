@@ -42,11 +42,8 @@ const RegisterPage = () => {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
 
-      // Save additional info to Firestore
-      // NOTE: For the first user or special setup, you can change 'role' to 'admin' manually in Firebase Console.
-      // Or you can use a secret code here for initial setup.
-      const isInitialAdmin = formData.email === 'admin@ltc.lao'; // Example secret admin email
-      
+      // LTC Intern Tracking System v2:
+      // ທຸກຄົນທີ່ສະໝັກເອງ = role: 'intern', status: 'pending' ສະເໝີ
       await setDoc(doc(db, 'users', user.uid), {
         fullname: formData.fullname,
         college: formData.college,
@@ -55,11 +52,17 @@ const RegisterPage = () => {
         email: formData.email,
         startDate: formData.startDate,
         endDate: formData.endDate,
-        role: isInitialAdmin ? 'admin' : 'intern',
+        role: 'intern',
+        status: 'pending',
+        departmentId: null,
+        supervisorId: null,
+        skills: [],
+        finalGrade: null,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       });
 
-      router.push('/dashboard');
+      router.push('/pending');
     } catch (err: any) {
       console.error(err);
       setError('ການລົງທະບຽນຜິດພາດ: ' + (err.message || 'ລອງໃໝ່ອີກຄັ້ງ'));
@@ -110,6 +113,7 @@ const RegisterPage = () => {
                   placeholder="ຊື່ ແລະ ນາມສະກຸນ" 
                 />
               </div>
+
             </div>
 
             <div className="space-y-1">

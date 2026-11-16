@@ -1,0 +1,191 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ====================================================
+    // Helper Functions
+    // ====================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'superadmin' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin')
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+        isSuperAdmin()
+      );
+    }
+
+    // ====================================================
+    // Collection: users
+    // ====================================================
+    match /users/{userId} {
+      // 1. ອ່ານ:
+      // - Super Admin ອ່ານໄດ້ທັງໝົດ
+      // - Intern ອ່ານໄດ້ສະເພາະຂອງຕົນ
+      // - Admin ອ່ານໄດ້ສະເພາະ Intern ທີ່ supervisorId == auth.uid ຫຼື ໂປຣໄຟລ໌ຕົນເອງ
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        isOwner(userId) ||
+        (isAdmin() && resource.data.supervisorId == request.auth.uid)
+      );
+
+      // 2. ສ້າງ (ລົງທະບຽນ):
+      // - ບັງຄັບ role == 'intern' ແລະ status == 'pending' ສະເໝີ
+      allow create: if isOwner(userId) &&
+        request.resource.data.role == 'intern' &&
+        request.resource.data.status == 'pending';
+
+      // 3. ແກ້ໄຂ (Update):
+      // - Super Admin ແກ້ໄດ້ທຸກ field
+      // - User ທົ່ວໄປແກ້ໄດ້ສະເພາະ profile ຕົນເອງ ແຕ່ ຫ້າມ ແກ້: role, status, departmentId, supervisorId, finalGrade
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (
+          isOwner(userId) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'role', 'status', 'departmentId', 'supervisorId', 'finalGrade'
+          ])
+        )
+      );
+
+      // 4. ລຶບ: ສະເພາະ Super Admin
+      allow delete: if isSuperAdmin();
+    }
+
+    // ====================================================
+    // Collection: departments
+    // ====================================================
+    match /departments/{deptId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // ====================================================
+    // Collection: attendance
+    // ====================================================
+    match /attendance/{docId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        (isAdmin() && (
+          resource.data.supervisorId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/users/$(resource.data.userId)) &&
+           get(/databases/$(database)/documents/users/$(resource.data.userId)).data.supervisorId == request.auth.uid)
+        ))
+      );
+      // ການຂຽນ attendance ໃນ v2 ຜ່ານ Server API ເທົ່ານັ້ນ (firebase-admin bypasses rules)
+      allow write: if isSuperAdmin();
+    }
+
+    // ====================================================
+    // Collection: daily_reports
+    // ====================================================
+    match /daily_reports/{reportId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        (isAdmin() && (
+          resource.data.supervisorId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/users/$(resource.data.userId)) &&
+           get(/databases/$(database)/documents/users/$(resource.data.userId)).data.supervisorId == request.auth.uid)
+        ))
+      );
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) ||
+        (isAdmin() && (
+          resource.data.supervisorId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/users/$(resource.data.userId)) &&
+           get(/databases/$(database)/documents/users/$(resource.data.userId)).data.supervisorId == request.auth.uid)
+        ))
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // ====================================================
+    // Collection: leave_requests
+    // ====================================================
+    match /leave_requests/{requestId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        (isAdmin() && (
+          resource.data.supervisorId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/users/$(resource.data.userId)) &&
+           get(/databases/$(database)/documents/users/$(resource.data.userId)).data.supervisorId == request.auth.uid)
+        ))
+      );
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdmin() && (
+          resource.data.supervisorId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/users/$(resource.data.userId)) &&
+           get(/databases/$(database)/documents/users/$(resource.data.userId)).data.supervisorId == request.auth.uid)
+        )) ||
+        (isOwner(resource.data.userId) && request.resource.data.status == 'cancelled' && resource.data.status == 'pending')
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // ====================================================
+    // Collection: leave_types, leave_attachments
+    // ====================================================
+    match /leave_types/{typeId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    match /leave_attachments/{attachmentId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isSuperAdmin()
+      );
+      allow write: if false; // ອັບໂຫຼດຜ່ານ Server API ເທົ່ານັ້ນ ເພື່ອກວດຂະໜາດ <= 700KB
+    }
+
+    // ====================================================
+    // Collection: settings, holidays, certificates
+    // ====================================================
+    match /settings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    match /holidays/{date} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    match /certificates/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isSuperAdmin());
+      allow write: if isSuperAdmin();
+    }
+
+    // ====================================================
+    // Collection: audit_logs
+    // ====================================================
+    match /audit_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow write: if false; // ຂຽນຜ່ານ Server Firebase Admin ເທົ່ານັ້ນ
+    }
+  }
+}

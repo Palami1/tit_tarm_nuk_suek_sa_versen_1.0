@@ -41,6 +41,23 @@ const LoginPage = () => {
     setParticles(generated);
   }, []);
 
+  // Helper redirect function for v2 3-tier role & status
+  const redirectByUser = (userData: any) => {
+    const role = userData?.role || 'intern';
+    const status = userData?.status || 'pending';
+
+    if (role === 'superadmin' || role === 'admin') {
+      router.replace('/admin');
+      return;
+    }
+
+    if (status === 'approved') {
+      router.replace('/dashboard');
+    } else {
+      router.replace('/pending');
+    }
+  };
+
   // Auto-redirect if already logged in
   useEffect(() => {
     let isMounted = true;
@@ -58,10 +75,9 @@ const LoginPage = () => {
             limit(1)
           ));
           if (!userDoc.empty) {
-            const role = userDoc.docs[0].data().role;
-            router.replace(role === 'admin' ? '/admin' : '/dashboard');
+            redirectByUser(userDoc.docs[0].data());
           } else {
-            router.replace('/dashboard');
+            router.replace('/pending');
           }
         } catch (err) {
           console.error('Session check error:', err);
@@ -95,10 +111,9 @@ const LoginPage = () => {
       ));
 
       if (!userDoc.empty) {
-        const role = userDoc.docs[0].data().role;
-        router.replace(role === 'admin' ? '/admin' : '/dashboard');
+        redirectByUser(userDoc.docs[0].data());
       } else {
-        router.replace('/dashboard');
+        router.replace('/pending');
       }
     } catch (err: any) {
       setError('ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ');
@@ -174,10 +189,11 @@ const LoginPage = () => {
             </div>
 
             {/* Header */}
-            <header className="mb-8 animate-slide-up stagger-1">
-              <h1 className="text-2xl font-bold text-[#1a2b4b] mb-2">🎓 Intern Login</h1>
+            <header className="mb-6 animate-slide-up stagger-1">
+              <h1 className="text-2xl font-bold text-[#1a2b4b] mb-1">🎓 Intern & Admin Login</h1>
               <p className="text-sm text-gray-400">ກະລຸນາເຂົ້າສູ່ລະບົບເພື່ອດຳເນີນການຕໍ່</p>
             </header>
+
 
             <form onSubmit={handleLogin} className="space-y-5 text-left">
 

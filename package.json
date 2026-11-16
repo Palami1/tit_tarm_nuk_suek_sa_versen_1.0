@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --test tests/attendance-rules.test.ts tests/workdays.test.ts tests/grading.test.ts"
   },
   "dependencies": {
+    "@opentelemetry/api": "^1.10.0",
     "firebase": "^12.11.0",
+    "firebase-admin": "^14.5.1",
     "next": "16.2.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",

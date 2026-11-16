@@ -2,21 +2,42 @@
 
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
+import {
+  calculateTotalWorkDays,
+  calculateDaysPassed,
+  DateRange,
+} from '@/lib/workdays';
+import {
+  calculateAttendancePerformance,
+  getGradeDetails,
+  getGradeStatus,
+  DEFAULT_GRADE_THRESHOLDS,
+} from '@/lib/grading';
+import { getVientianeDateString, getServerNow } from '@/lib/attendance-rules';
+import { Skill, UserProfile } from '@/types';
 
-const ReportsPage = () => {
-  const [stats, setStats] = useState({
-    daysCompleted: 0,
-    totalDays: 0,
-    percent: 0,
-    attendanceRating: '...',
-    totalHours: 0,
-    fullname: 'Intern'
-  });
-  const [skills, setSkills] = useState<{ name: string; percent: number }[]>([]);
+export default function InternReportsPage() {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Computed Stats
+  const [stats, setStats] = useState({
+    totalWorkDays: 0,
+    daysPassed: 0,
+    attendedDays: 0,
+    absentDays: 0,
+    leaveDays: 0,
+    performancePercent: null as number | null,
+    grade: '—',
+    gradeLabel: 'ກຳລັງປະເມີນ...',
+    gradeColorClass: 'text-gray-400 bg-gray-500/10',
+    isFinal: false,
+  });
+
+  const [skills, setSkills] = useState<Skill[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -25,178 +46,247 @@ const ReportsPage = () => {
         router.push('/login');
         return;
       }
-      
+
       try {
-        // Fetch User Info for Dates
-        const userDoc = await getDocs(query(collection(db, 'users'), where('email', '==', user.email), limit(1)));
-        if (userDoc.empty) return;
-        const userData = userDoc.docs[0].data();
-        
-        // Fetch Attendance for Stats
-        const attendSnap = await getDocs(query(collection(db, 'attendance'), where('userId', '==', user.uid)));
-        const totalSessions = attendSnap.size;
-        
-        // Calculate Days Progress
-        // Safe parser: handles Firestore Timestamp objects AND plain date strings
-        const parseDate = (val: any): Date | null => {
-          if (!val) return null;
-          if (typeof val.toDate === 'function') return val.toDate(); // Firestore Timestamp
-          const d = new Date(val);
-          return isNaN(d.getTime()) ? null : d;
-        };
+        setLoading(true);
 
-        const start = parseDate(userData.startDate);
-        const end   = parseDate(userData.endDate);
-        const today = new Date();
+        // 1. Fetch User Profile
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (!userSnap.exists()) return;
+        const userData = { uid: userSnap.id, ...userSnap.data() } as UserProfile;
+        setProfile(userData);
+        setSkills(userData.skills || []);
 
-        let totalDays = 0;
-        let daysCompleted = 0;
-        let percent = 0;
+        // 2. Fetch System Holidays
+        const holidaysSnap = await getDocs(collection(db, 'holidays'));
+        const holidaysList = holidaysSnap.docs.map(d => d.id); // Doc ID is YYYY-MM-DD
 
-        if (start && end && end > start) {
-          const totalDuration = end.getTime() - start.getTime();
-          const elapsed = today.getTime() - start.getTime();
-          
-          const calendarTotalDays = totalDuration / (1000 * 60 * 60 * 24);
-          const calendarElapsedDays = elapsed / (1000 * 60 * 60 * 24);
-          
-          // ກົດລະບຽນໃໝ່: 1 ເດືອນ (30 ມື້) = 20 ມື້ເຮັດວຽກ
-          totalDays = Math.round((calendarTotalDays / 30) * 20);
-          daysCompleted = Math.max(0, Math.round((calendarElapsedDays / 30) * 20));
-          
-          if (daysCompleted > totalDays) daysCompleted = totalDays;
-          
-          percent = totalDays > 0 ? Math.min(100, Math.max(0, Math.round((daysCompleted / totalDays) * 100))) : 0;
-        }
+        // 3. Fetch Approved Leave Requests
+        const leaveSnap = await getDocs(
+          query(
+            collection(db, 'leave_requests'),
+            where('userId', '==', user.uid),
+            where('status', '==', 'approved')
+          )
+        );
+        const approvedLeaves: DateRange[] = leaveSnap.docs.map(d => ({
+          startDate: d.data().startDate,
+          endDate: d.data().endDate,
+        }));
 
-
-        // Calculate unique days attended from attendance collection
-        const uniqueDaysSet = new Set<string>();
+        // 4. Fetch Attendance Records for this intern
+        const attendSnap = await getDocs(
+          query(collection(db, 'attendance'), where('userId', '==', user.uid))
+        );
+        const uniqueAttendedDates = new Set<string>();
         attendSnap.docs.forEach(d => {
           const dt = d.data().date;
-          if (dt) uniqueDaysSet.add(dt);
+          if (dt) uniqueAttendedDates.add(dt);
         });
-        const uniqueAttendedDays = uniqueDaysSet.size;
+        const attendedDaysCount = uniqueAttendedDates.size;
 
-        // Estimate Hours (Assuming ~7h per unique day, or specific logic)
-        const totalHours = uniqueAttendedDays * 7; 
-        
-        let attendanceRating = 'ກຳລັງປະເມີນ...';
-        
-        if (daysCompleted > 0) {
-           // Calculate performance: attended days vs elapsed days
-           const performancePercent = Math.round((uniqueAttendedDays / daysCompleted) * 100);
-           
-           let grade = 'F (ຕົກ)';
-           if (performancePercent >= 80) grade = 'A (ເກັ່ງ)';
-           else if (performancePercent >= 70) grade = 'B (ດີ)';
-           else if (performancePercent >= 60) grade = 'C (ປານກາງ)';
-           else if (performancePercent >= 50) grade = 'D (ອ່ອນ)';
-           
-           if (daysCompleted < totalDays) {
-              attendanceRating = `${grade} (ຊົ່ວຄາວ)`;
-           } else {
-              attendanceRating = grade;
-           }
+        // 5. Calendar calculations using v2 pure functions
+        const startDate = userData.startDate || '';
+        const endDate = userData.endDate || '';
+        const todayStr = getVientianeDateString(getServerNow());
+
+        if (startDate && endDate) {
+          const totalWork = calculateTotalWorkDays(startDate, endDate, holidaysList, approvedLeaves);
+          const passed = calculateDaysPassed(startDate, endDate, todayStr, holidaysList, approvedLeaves);
+          const perf = calculateAttendancePerformance(attendedDaysCount, passed);
+          const isFinal = getGradeStatus(todayStr, endDate) === 'final';
+
+          // Load system grade thresholds if available
+          let thresholds = DEFAULT_GRADE_THRESHOLDS;
+          try {
+            const sSnap = await getDoc(doc(db, 'settings', 'system'));
+            if (sSnap.exists() && sSnap.data()?.gradeThresholds) {
+              thresholds = sSnap.data().gradeThresholds;
+            }
+          } catch (e) {}
+
+          const gradeInfo = getGradeDetails(perf, isFinal, thresholds);
+          const absent = Math.max(0, passed - attendedDaysCount);
+
+          // Count unique leave days that fell within the internship period
+          let leaveCount = 0;
+          approvedLeaves.forEach(l => {
+            const days = calculateTotalWorkDays(l.startDate, l.endDate, holidaysList, []);
+            leaveCount += days;
+          });
+
+          setStats({
+            totalWorkDays: totalWork,
+            daysPassed: passed,
+            attendedDays: attendedDaysCount,
+            absentDays: absent,
+            leaveDays: leaveCount,
+            performancePercent: perf,
+            grade: gradeInfo.grade,
+            gradeLabel: gradeInfo.label,
+            gradeColorClass: gradeInfo.colorClass,
+            isFinal,
+          });
         }
-
-        setStats({
-          daysCompleted,
-          totalDays,
-          percent,
-          attendanceRating,
-          totalHours,
-          fullname: userData.fullname || 'Intern'
-        });
-        // Load skills set by admin
-        setSkills(Array.isArray(userData.skills) ? userData.skills : []);
       } catch (err) {
-        console.error(err);
+        console.error('Error fetching reports data:', err);
       } finally {
         setLoading(false);
       }
     });
 
     return () => unsubscribeAuth();
-  }, []);
-
-  if (loading) return <div className="text-center py-20 text-gray-500">ກຳລັງປະມວນຜົນສະຖິຕິ...</div>;
+  }, [router]);
 
   return (
-    <div className="space-y-10 pb-12">
-      <div className="mb-10">
-        <h1 className="text-3xl font-black text-gray-800">ລາຍງານຜົນການຝຶກງານ</h1>
-        <p className="text-gray-400 text-sm mt-1 uppercase tracking-wider font-medium">Internship Progress Summary</p>
+    <div className="space-y-6 font-lao animate-slide-up">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900">ລາຍງານຜົນ & ການປະເມີນ</h1>
+          <p className="text-xs text-gray-400 mt-0.5">
+            ຄິດໄລ່ຈາກມື້ເຮັດວຽກຕົວຈິງ (ຈັນ–ສຸກ, ຕັດວັນພັກ ແລະ ມື້ລາພັກທີ່ອະນຸມັດແລ້ວ)
+          </p>
+        </div>
+        <div className="flex items-center space-x-3 bg-white p-2 pr-5 rounded-full card-shadow border border-gray-100">
+          <img
+            className="w-10 h-10 rounded-full border-2 border-red-500 p-0.5"
+            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile?.fullname || 'Intern'}`}
+            alt="avatar"
+          />
+          <div>
+            <div className="text-xs font-bold text-gray-800">{profile?.fullname || 'Intern'}</div>
+            <div className="text-[10px] text-red-600 font-bold uppercase tracking-wider">LTC Intern</div>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <div className="bg-white rounded-[2.5rem] p-8 flex items-center justify-between overflow-hidden relative card-shadow border border-gray-100">
-            <div className="z-10">
-              <h2 className="text-xl font-bold text-gray-800 mb-2">ຄວາມຄືບໜ້າລວມ</h2>
-              <p className="text-sm text-gray-400 mb-6">ທ່ານຝຶກງານໄປແລ້ວ {stats.daysCompleted} ມື້ ຈາກທັງໝົດ {stats.totalDays} ມື້</p>
-              <div className="flex items-center space-x-2">
-                <span className="text-5xl font-black text-red-500">{stats.percent}%</span>
-                <span className="text-gray-300 font-bold">COMPLETED</span>
-              </div>
-            </div>
-            <div className="relative w-40 h-40">
-              <svg className="w-full h-full" viewBox="0 0 36 36">
-                <path className="text-gray-100" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                <path className="text-red-500" strokeDasharray={`${stats.percent}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center font-black text-gray-800">
-                {stats.daysCompleted}/{stats.totalDays}
-              </div>
-            </div>
+      {/* Main Grade & Performance Banner */}
+      <section className="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="space-y-2 text-center md:text-left flex-1">
+          <div className="inline-flex items-center gap-2">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+              ເກຣດປະເມີນຜົນການຝຶກງານ
+            </span>
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${stats.gradeColorClass}`}>
+              {stats.isFinal ? 'ສຸດທ້າຍ (Final)' : 'ຊົ່ວຄາວ (Provisional)'}
+            </span>
           </div>
 
-          <div className="bg-white rounded-[2.5rem] p-8 card-shadow border border-gray-100">
-            <h3 className="font-bold text-gray-800 mb-6">🎯 ທັກສະທີ່ໄດ້ຮຽນຮູ້ (Skills Track)</h3>
-            {skills.length === 0 ? (
-              <div className="py-10 text-center">
-                <div className="text-4xl mb-3">📋</div>
-                <p className="text-sm text-gray-400 font-bold">ຍັງບໍ່ທັນຖືກກຳໜົດທັກສະ</p>
-                <p className="text-xs text-gray-300 mt-1">Admin ຈະ update ທັກສະໃຫ້ທ່ານໃນໄວໆນີ້</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {skills.map((skill, idx) => (
-                  <div key={idx}>
-                    <div className="flex justify-between text-xs font-bold mb-2">
-                      <span className="text-gray-600 uppercase">{skill.name}</span>
-                      <span className="text-red-500">{skill.percent}%</span>
-                    </div>
-                    <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-gradient-to-r from-red-600 to-red-400 h-full rounded-full transition-all duration-1000"
-                        style={{ width: `${skill.percent}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight flex items-baseline justify-center md:justify-start gap-3">
+            <span>ເກຣດ {stats.grade}</span>
+            {stats.performancePercent !== null && (
+              <span className="text-2xl sm:text-3xl font-bold text-gray-400">
+                ({stats.performancePercent}%)
+              </span>
             )}
           </div>
+
+          <p className="text-xs text-gray-500 leading-relaxed max-w-lg">
+            {stats.gradeLabel}. ເກຣດຄິດໄລ່ຈາກອັດຕາສ່ວນການມາເຮັດວຽກຕົວຈິງ ທຽບກັບມື້ເຮັດວຽກທີ່ຜ່ານມາ (ບໍ່ນັບວັນພັກ ແລະ ມື້ລາພັກ).
+          </p>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-gray-900 rounded-[2.5rem] p-8 text-white shadow-xl shadow-gray-200">
-            <div className="text-xs font-bold text-gray-500 uppercase mb-4 tracking-widest">Attendance Rating</div>
-            <div className="text-5xl font-black mb-2">{stats.attendanceRating}</div>
-            <p className="text-xs text-gray-400">ອີງຕາມຈຳນວນຄັ້ງທີ່ທ່ານໄດ້ລົງເວລາເຂົ້າວຽກ</p>
-            <div className="mt-6 pt-6 border-t border-gray-800">
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Total Hours (Est.)</span>
-                <span className="font-bold text-red-500">{stats.totalHours} ຊົ່ວໂມງ</span>
-              </div>
-            </div>
-          </div>
+        {/* Big Circular/Square Badge */}
+        <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-red-600 to-rose-700 flex flex-col items-center justify-center text-white shadow-xl shadow-red-200">
+          <span className="text-4xl font-black leading-none">{stats.grade}</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
+            {stats.isFinal ? 'FINAL' : 'TEMP'}
+          </span>
+        </div>
+      </section>
+
+      {/* 4 Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-3xl card-shadow border border-gray-100">
+          <div className="text-xs font-bold text-gray-400 mb-1">ມື້ທີ່ມາເຮັດວຽກ</div>
+          <div className="text-2xl font-black text-emerald-600">{stats.attendedDays} ມື້</div>
+          <div className="text-[10px] text-gray-400 mt-1">ມີ Check-in ຕົວຈິງ</div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl card-shadow border border-gray-100">
+          <div className="text-xs font-bold text-gray-400 mb-1">ມື້ເຮັດວຽກທີ່ຜ່ານມາ</div>
+          <div className="text-2xl font-black text-gray-800">{stats.daysPassed} ມື້</div>
+          <div className="text-[10px] text-gray-400 mt-1">ບໍ່ລວມມື້ລາ ແລະ ວັນພັກ</div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl card-shadow border border-gray-100">
+          <div className="text-xs font-bold text-gray-400 mb-1">ມື້ຂາດວຽກ (Absent)</div>
+          <div className="text-2xl font-black text-red-600">{stats.absentDays} ມື້</div>
+          <div className="text-[10px] text-gray-400 mt-1">ຜ່ານມາໂດຍບໍ່ໄດ້ມາ</div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl card-shadow border border-gray-100">
+          <div className="text-xs font-bold text-gray-400 mb-1">ມື້ເຮັດວຽກທັງໝົດ</div>
+          <div className="text-2xl font-black text-gray-800">{stats.totalWorkDays} ມື້</div>
+          <div className="text-[10px] text-gray-400 mt-1">ຕະຫຼອດຊ່ວງຝຶກງານ</div>
         </div>
       </div>
+
+      {/* Progress Bar of Internship */}
+      <section className="bg-white rounded-3xl p-6 card-shadow border border-gray-100 space-y-3">
+        <div className="flex justify-between items-center text-xs">
+          <span className="font-bold text-gray-700">ຄວາມຄືບໜ້າໄລຍະເວລາຝຶກງານ:</span>
+          <span className="font-extrabold text-red-600">
+            {stats.totalWorkDays > 0 ? Math.min(100, Math.round((stats.daysPassed / stats.totalWorkDays) * 100)) : 0}%
+          </span>
+        </div>
+
+        <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+          <div
+            className="bg-gradient-to-r from-red-500 to-rose-600 h-3 rounded-full transition-all duration-500"
+            style={{
+              width: `${stats.totalWorkDays > 0 ? Math.min(100, Math.round((stats.daysPassed / stats.totalWorkDays) * 100)) : 0}%`,
+            }}
+          />
+        </div>
+
+        <div className="flex justify-between text-[11px] text-gray-400 pt-1">
+          <span>ວັນເລີ່ມຕົ້ນ: {profile?.startDate || '—'}</span>
+          <span>{stats.daysPassed} ຈາກ {stats.totalWorkDays} ມື້</span>
+          <span>ວັນສິ້ນສຸດ: {profile?.endDate || '—'}</span>
+        </div>
+      </section>
+
+      {/* Skills Evaluation Section */}
+      <section className="bg-white rounded-3xl p-6 card-shadow border border-gray-100 space-y-4">
+        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+          <div>
+            <h3 className="text-base font-bold text-gray-800 flex items-center gap-2">
+              <span>🎯</span>
+              <span>ຄະແນນທັກສະ (Skills Evaluation)</span>
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">ປະເມີນ ແລະ ໃຫ້ຄະແນນໂດຍຫົວໜ້າທີມ (Supervisor)</p>
+          </div>
+          <span className="text-xs text-gray-400">{skills.length} ທັກສະ</span>
+        </div>
+
+        {skills.length === 0 ? (
+          <div className="py-10 text-center text-xs text-gray-400">
+            ຍັງບໍ່ມີການປະເມີນທັກສະຈາກຫົວໜ້າທີມ
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {skills.map((skill, idx) => (
+              <div key={idx} className="space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold text-gray-800">{skill.name}</span>
+                  <span className="font-extrabold text-red-600">{skill.percent}%</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-red-500 h-2.5 rounded-full"
+                    style={{ width: `${skill.percent}%` }}
+                  />
+                </div>
+                {skill.note && (
+                  <p className="text-[11px] text-gray-500 italic pl-1">ຄຳເຫັນ: {skill.note}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
-};
-
-export default ReportsPage;
-
+}
